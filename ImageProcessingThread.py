@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.metrics import silhouette_score
+from skimage.metrics import structural_similarity as compare_ssim
 
 
 _sr = None
@@ -583,6 +584,64 @@ def detect_and_draw_contours(img, min_contour_area=100):
     cv2.drawContours(img_with_contours, filtered_contours, -1, (0, 255, 0), 2)
 
     return img_with_contours, filtered_contours
+
+
+def detect_contours_advanced(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    edges = cv2.Canny(blurred, 50, 150)
+    
+    contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    
+    output = image.copy()
+    for i, contour in enumerate(contours):
+        area = cv2.contourArea(contour)
+        if area > 500:  # filtrer les petits contours
+            approx = cv2.approxPolyDP(contour, 0.02 * cv2.arcLength(contour, True), True)
+            cv2.drawContours(output, [approx], -1, (0, 255, 0), 3)
+    
+    return output, contours, hierarchy
+
+
+def compare_images(img1, img2):
+    """
+    Compare two images and return a similarity score (probability between 0 and 1)
+    and recommend which image to keep based on sharpness.
+
+    Parameters:
+    - img1, img2: numpy.ndarray, input images (color or grayscale)
+      They should have the same dimensions.
+
+    Returns:
+    - similarity: float, similarity score between 0 (different) and 1 (identical)
+    - keep_img: int, 1 or 2 indicating which image is recommended to keep
+    """
+    # Convert images to grayscale if needed
+    if len(img1.shape) == 3:
+        gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    else:
+        gray1 = img1.copy()
+    if len(img2.shape) == 3:
+        gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    else:
+        gray2 = img2.copy()
+
+    # Compute SSIM between the two images
+    similarity, _ = compare_ssim(gray1, gray2, full=True)
+    # SSIM is in [-1,1], but usually between 0 and 1 for images
+
+    # Compute sharpness of each image using variance of Laplacian
+    def sharpness(img):
+        return cv2.Laplacian(img, cv2.CV_64F).var()
+
+    sharp1 = sharpness(gray1)
+    sharp2 = sharpness(gray2)
+
+    # Recommend keeping the sharper image
+    keep_img = 1 if sharp1 >= sharp2 else 2
+
+    return similarity, 
+
 
 
 def CV_FFT(img, apply=True):
