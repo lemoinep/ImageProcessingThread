@@ -455,6 +455,136 @@ def CV_SaliencyAddWeighted(img, alpha=0.6, beta=0.4, gamma=0, apply=True):
     return cv2.addWeighted(img, alpha, saliencyMap_color, beta, gamma)
 
 
+def CV_ApplyFilter(img, filter_type, kernel_size):
+    """
+    Apply a specified filter to an img.
+
+    Parameters:
+    - img: numpy.ndarray, input img (grayscale or color)
+    - filter_type: int, filter selector
+        1 = Homogeneous blur
+        2 = Gaussian blur
+        3 = Median blur
+        4 = Bilateral filter
+        5 = Scharr filter (x-gradient)
+        6 = Watershed (placeholder, requires markers)
+    - kernel_size: int, kernel size or filter parameter
+
+    Returns:
+    - filtered img as numpy.ndarray
+    """
+    if filter_type == 1:
+        # Homogeneous blur
+        return cv2.blur(img, (kernel_size, kernel_size))
+    elif filter_type == 2:
+        # Gaussian blur
+        return cv2.GaussianBlur(img, (kernel_size, kernel_size), 0)
+    elif filter_type == 3:
+        # Median blur
+        return cv2.medianBlur(img, kernel_size)
+    elif filter_type == 4:
+        # Bilateral filter
+        return cv2.bilateralFilter(img, kernel_size, kernel_size*2, kernel_size//2)
+    elif filter_type == 5:
+        # Scharr filter (gradient in x direction)
+        if len(img.shape) == 3 and img.shape[2] == 3:
+            channels = cv2.split(img)
+            scharr_channels = [cv2.Scharr(ch, cv2.CV_8U, 1, 0, scale=4) for ch in channels]
+            return cv2.merge(scharr_channels)
+        else:
+            return cv2.Scharr(img, cv2.CV_8U, 1, 0, scale=4)
+    elif filter_type == 6:
+        # Watershed placeholder (requires markers)
+        # Without markers, just return a copy
+        return img.copy()
+    else:
+        # No filter or unknown type, return original
+        return img.copy()
+
+
+def CV_Sharpen2d(source, alpha, gamma, num_op):
+    """
+    Sharpen an img with optional pre-filtering.
+
+    Parameters:
+    - source: numpy.ndarray, input img
+    - alpha: float, weight for the filtered source img
+    - gamma: float, scalar added to the weighted sum
+    - num_op: int, selects pre-filtering operation
+        1 = Gaussian blur with kernel 3
+        2 = Homogeneous blur with kernel 9
+        else = no pre-filtering
+
+    Returns:
+    - sharpened img as numpy.ndarray
+    """
+    def sharpen_kernel(src):
+        kernel = np.array([[0, -1, 0],
+                           [-1, 5, -1],
+                           [0, -1, 0]])
+        return cv2.filter2D(src, -1, kernel)
+
+    dst = sharpen_kernel(source)
+
+    if num_op == 1:
+        source_filtered = CV_ApplyFilter(source, 2, 3)
+    elif num_op == 2:
+        source_filtered = CV_ApplyFilter(source, 1, 9)
+    else:
+        source_filtered = source.copy()
+
+    dst_img = cv2.addWeighted(source_filtered, alpha, dst, 1.0 - alpha, gamma)
+    return dst_img
+
+def CV_fastNlMeansDenoisingColored(img, h=3, hColor=3, templateWindowSize=7, searchWindowSize=21):
+    """
+    Apply Non-local Means Denoising on a colored img.
+
+    Parameters:
+    - img: numpy.ndarray, input color img (BGR)
+    - h: float, parameter regulating filter strength for luminance component (default 3)
+    - hColor: float, same as h but for color components (default 3)
+    - templateWindowSize: int, size in pixels of the template patch used to compute weights (default 7)
+    - searchWindowSize: int, size in pixels of the window used to compute weighted average (default 21)
+
+    Returns:
+    - dst: numpy.ndarray, denoised color img
+    """
+    dst = cv2.fastNlMeansDenoisingColored(img, None, h, hColor, templateWindowSize, searchWindowSize)
+    return dst
+
+
+def detect_and_draw_contours(img, min_contour_area=100):
+    """
+    Detects contours in the input img and draws them.
+
+    Parameters:
+    - img: numpy.ndarray, input color img (BGR)
+    - min_contour_area: int, minimum area of contours to keep (filter small contours)
+
+    Returns:
+    - img_with_contours: numpy.ndarray, copy of input img with contours drawn
+    - contours: list of contours found (each contour is a numpy array of points)
+    """
+    # Convert to grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Apply binary thresholding
+    _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+
+    # Find contours
+    contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Filter contours by area
+    filtered_contours = [c for c in contours if cv2.contourArea(c) > min_contour_area]
+
+    # Draw contours on a copy of the original img
+    img_with_contours = img.copy()
+    cv2.drawContours(img_with_contours, filtered_contours, -1, (0, 255, 0), 2)
+
+    return img_with_contours, filtered_contours
+
+
 def CV_FFT(img, apply=True):
     """
     Compute the magnitude spectrum of the 2D Fourier transform of the image.
