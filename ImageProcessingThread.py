@@ -1118,7 +1118,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Image processing with OpenCV super-resolution DNN')
     parser.add_argument('--Path', type=str, help='Directory containing .jpg images')
     parser.add_argument('--NbPoints', type=int, default=10, help='Number of sampling points')
-    parser.add_argument('--QEntete', type=bool, default=True, help='Header adjustment flag')
+    parser.add_argument('--QEntete', type=int, default=0, help='Header adjustment flag')
     parser.add_argument('--superres', action='store_true', help='Enable super-resolution')
     parser.add_argument('--model', type=str, default='ESPCN_x4.pb', help='Super-resolution model path')
     parser.add_argument('--workers', type=int, default=4, help='Number of parallel threads')
