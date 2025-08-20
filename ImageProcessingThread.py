@@ -1005,6 +1005,38 @@ def CV_AdvancedPointillism(img, num_colors=20, dot_radius=None, step=None, apply
     return canvas
 
 
+def CV_Plastify(image, bilateral_d=15, bilateral_sigma_color=75, bilateral_sigma_space=75, sharpen_strength=1.5, saturation_scale=1.3):
+    """
+    Applies a plastify effect to the given image.
+
+    Params:
+    - image: BGR numpy array image
+    - bilateral_d: diameter of the neighborhood for the bilateral filter
+    - bilateral_sigma_color: color sigma for the bilateral filter
+    - bilateral_sigma_space: space sigma for the bilateral filter
+    - sharpen_strength: factor to increase sharpness (1.0 = normal)
+    - saturation_scale: factor to scale saturation (1.0 = normal)
+
+    Returns:
+    - image modified with plastify effect
+    """
+
+    # 1. Bilateral smoothing (smooths textures without degrading edges)
+    smooth = cv2.bilateralFilter(image, bilateral_d, bilateral_sigma_color, bilateral_sigma_space)
+
+    # 2. Unsharp masking (sharpness): img_sharp = img + strength * (img - blur(img))
+    blur = cv2.GaussianBlur(smooth, (0,0), sigmaX=3)
+    unsharp = cv2.addWeighted(smooth, 1.0 + sharpen_strength, blur, -sharpen_strength, 0)
+
+    # 3. Convert to HSV to increase saturation
+    hsv = cv2.cvtColor(unsharp, cv2.COLOR_BGR2HSV).astype(np.float32)
+    hsv[:, :, 1] *= saturation_scale  # increase S (saturation)
+    hsv[:, :, 1] = np.clip(hsv[:, :, 1], 0, 255)
+    plastified = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+
+    return plastified
+
+
 def CV_ResizeWithAspectRatio(img, width=None, height=None, interpolation=cv2.INTER_AREA, apply=True):
     if not apply:
         return img
