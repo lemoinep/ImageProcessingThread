@@ -10,7 +10,11 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.metrics import silhouette_score
 from skimage.metrics import structural_similarity as compare_ssim
+from PIL import Image
+from pillow_heif import register_heif_opener
+import pillow_avif
 
+register_heif_opener()
 
 _sr = None
 
@@ -1026,6 +1030,21 @@ def CV_Crop(img, px, py, width, height, apply=True):
     return img
     
 
+def CV_SaveImageToWEBP(img, output_path, quality=80):
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    pil_img = Image.fromarray(img_rgb)
+    pil_img.save(output_path, 'WEBP', quality=quality)
+
+def CV_SaveImageToAVIF(img, output_path, quality=80):
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    pil_img = Image.fromarray(img_rgb)
+    pil_img.save(output_path, 'AVIF', quality=quality)
+
+def CV_SaveImageToHEIF(img, output_path, quality=80):
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    pil_img = Image.fromarray(img_rgb)
+    pil_img.save(output_path, 'HEIF', quality=quality)
+
 def auto_compute_limit1(img, percentile=10):
     """
     Automatically compute a threshold limit based on grayscale percentile.
@@ -1056,7 +1075,9 @@ def process_image(img_path, output_dir, NbPoints, Limit1, QEntete, QEraseBorderV
                   QPointillism,
                   QAdvancedPointillism,
                   QSegmentationWatershed,
-                  apply_sr=False, model_path='ESPCN_x4.pb'):
+                  apply_sr=False, model_path='ESPCN_x4.pb',
+                  save_formats=['jpg'], 
+                  quality=80):
 
     img = cv2.imread(img_path)
     if img is None:
@@ -1104,11 +1125,23 @@ def process_image(img_path, output_dir, NbPoints, Limit1, QEntete, QEraseBorderV
     
     img = CV_FFT(img,QFFT)
     
-    base_name = os.path.basename(img_path)
-    output_path = os.path.join(output_dir, base_name)
-    cv2.imwrite(output_path, img)
-    # Uncomment below for debug info:
-    # print(f"Processed and saved image: {output_path}")
+    base_name = os.path.splitext(os.path.basename(img_path))[0]
+
+    if not save_formats or save_formats == ['jpg']:
+        output_path = os.path.join(output_dir, base_name + '.jpg')
+        cv2.imwrite(output_path, img)
+    else:
+        if 'webp' in save_formats:
+            output_path_webp = os.path.join(output_dir, base_name + '.webp')
+            CV_SaveImageToWEBP(img, output_path_webp, quality=quality)
+
+        if 'avif' in save_formats:
+            output_path_avif = os.path.join(output_dir, base_name + '.avif')
+            CV_SaveImageToAVIF(img, output_path_avif, quality=quality)
+
+        if 'heif' in save_formats:
+            output_path_heif = os.path.join(output_dir, base_name + '.heif')
+            CV_SaveImageToHEIF(img, output_path_heif, quality=quality)
 
 
 
@@ -1144,7 +1177,9 @@ if __name__ == '__main__':
     parser.add_argument('--width', type=int, default=None, help='new width')
     parser.add_argument('--height', type=int, default=None, help='new height')
     
-    
+    parser.add_argument('--save_formats', nargs='+', default=['jpg'], help='Formats to save: jpg, webp, avif, heif')
+    parser.add_argument('--quality', type=int, default=80, help='Compression quality (0-100) for formats supporting it')
+        
 
     args = parser.parse_args()
 
@@ -1205,7 +1240,10 @@ if __name__ == '__main__':
                                    QPointillism,
                                    QAdvancedPointillism,
                                    QSegmentationWatershed,
-                                   apply_sr, model_path) for f in files]
+                                   apply_sr, model_path,
+                                   save_formats=args.save_formats,
+                                   quality=args.quality) 
+                   for f in files]
 
         # Progress bar with tqdm
         for _ in tqdm(as_completed(futures), total=len(futures), desc="Processing images"):
