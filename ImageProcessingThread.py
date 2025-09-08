@@ -1077,6 +1077,12 @@ def CV_SaveImageToHEIF(img, output_path, quality=80):
     pil_img = Image.fromarray(img_rgb)
     pil_img.save(output_path, 'HEIF', quality=quality)
 
+def CV_LoadImageAVIF(name):
+    img_pil = Image.open(name).convert("RGB")
+    img_np = np.array(img_pil)
+    img_cv = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+    return img_cv
+
 def auto_compute_limit1(img, percentile=10):
     """
     Automatically compute a threshold limit based on grayscale percentile.
